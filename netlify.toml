@@ -1,0 +1,27 @@
+# Netlify Configuration
+# This file configures build settings for Netlify deployment
+
+[build]
+  # Next.js build command
+  command = "npm run build"
+  # Directory containing build output
+  publish = ".next"
+
+# Environment variables are configured in:
+# Netlify UI > Site Settings > Build & Deploy > Environment
+# OR set them as secrets in Netlify dashboard
+[build.environment]
+  # These should be set in Netlify dashboard, not here
+  # - NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+  # - CLOUDINARY_API_KEY
+  # - CLOUDINARY_API_SECRET
+  # - CLOUDINARY_URL
+
+# Disable git submodules during build
+[build]
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+
+# Security: Scan for secrets in build (default behavior)
+[build]
+  # Netlify will scan for exposed secrets
+  # Make sure all sensitive values are set via environment variables in the dashboard
