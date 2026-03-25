@@ -121,30 +121,28 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to Cloudinary using upload_stream
+    // Upload to Cloudinary using direct upload (more reliable in serverless)
     console.log('[Upload] Uploading to Cloudinary...');
-    const uploadResult = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'portfolio/projects',
-          resource_type: 'auto',
-          quality: 'auto',
-          fetch_format: 'auto',
-          chunk_size: 6000000, // 6MB chunks for large files
-        },
-        (error, result) => {
-          if (error) {
-            console.error('[Upload] Cloudinary error:', error);
-            reject(error);
-          } else {
-            console.log('[Upload] Cloudinary success:', { public_id: result?.public_id });
-            resolve(result);
-          }
-        }
-      );
+    let uploadResult;
+    
+    try {
+      uploadResult = await cloudinary.uploader.upload(buffer, {
+        folder: 'portfolio/projects',
+        resource_type: 'auto',
+        quality: 'auto',
+        fetch_format: 'auto',
+        timeout: 120000, // 2 minute timeout
+      });
+      console.log('[Upload] Cloudinary success:', { public_id: uploadResult?.public_id });
+    } catch (uploadError) {
+      console.error('[Upload] Cloudinary upload failed:', uploadError);
+      throw uploadError;
+    }
 
-      uploadStream.end(buffer);
-    });
+    } catch (uploadError) {
+      console.error('[Upload] Cloudinary upload failed:', uploadError);
+      throw uploadError;
+    }
 
     if (!uploadResult) {
       throw new Error('Cloudinary upload returned no result');
