@@ -1,0 +1,35 @@
+
+{
+  "projects": [
+    {
+      "id": "1",
+      "name": "Royal Cut",
+      "description": "A premium barber booking mobile app designed for seamless scheduling and stylist management.",
+      "tech": "Flutter, Firebase, Dart",
+      "image": "https://picsum.photos/seed/88/800/600",
+      "demo": "https://example.com",
+      "github": "https://github.com",
+      "drive": "https://drive.google.com"
+    },
+    {
+      "id": "2",
+      "name": "Techno Media Hub",
+      "description": "A high-performance agency website showcasing web development services and portfolio pieces.",
+      "tech": "React, Next.js, Tailwind CSS",
+      "image": "https://picsum.photos/seed/42/800/600",
+      "demo": "https://example.com",
+      "github": "https://github.com",
+      "drive": "https://drive.google.com"
+    },
+    {
+      "id": "3",
+      "name": "Zone A Learning Platform",
+      "description": "An interactive education portal for students at Zone A tech academy to access project materials.",
+      "tech": "React, Node.js, MongoDB",
+      "image": "https://picsum.photos/seed/15/800/600",
+      "demo": "https://example.com",
+      "github": "https://github.com",
+      "drive": "https://drive.google.com"
+    }
+  ]
+}

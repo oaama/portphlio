@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <style>
+    .bg { fill: #4294FF; }
+    .text { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 85px; font-weight: 700; fill: white; dominant-baseline: middle; text-anchor: middle; }
+  </style>
+  <rect class="bg" width="180" height="180" rx="24"/>
+  <text class="text" x="90" y="95">Eng</text>
+</svg>

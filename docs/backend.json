@@ -1,0 +1,88 @@
+
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "A portfolio project item",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "tech": { "type": "string" },
+        "image": { "type": "string" },
+        "demo": { "type": "string" },
+        "github": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "description", "tech"]
+    },
+    "PortfolioConfig": {
+      "title": "Portfolio Configuration",
+      "description": "Global settings for the portfolio site",
+      "type": "object",
+      "properties": {
+        "hero": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "specialty": { "type": "string" },
+            "bio": { "type": "string" },
+            "imageUrl": { "type": "string" }
+          }
+        },
+        "about": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "bio": { "type": "string" },
+            "imageUrl": { "type": "string" },
+            "ventures": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "role": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "contact": {
+          "type": "object",
+          "properties": {
+            "email": { "type": "string" },
+            "whatsapp": { "type": "string" },
+            "linkedin": { "type": "string" },
+            "github": { "type": "string" }
+          }
+        },
+        "techStack": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "category": { "type": "string", "enum": ["Web", "Mobile", "Backend", "Cloud"] }
+            }
+          }
+        }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Collection of portfolio projects"
+    },
+    "/settings/portfolio": {
+      "schema": "PortfolioConfig",
+      "description": "Global portfolio configuration document"
+    }
+  }
+}

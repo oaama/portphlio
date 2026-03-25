@@ -1,0 +1,23 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "project-royalcut",
+      "description": "Barber booking mobile app interface",
+      "imageUrl": "https://picsum.photos/seed/88/800/600",
+      "imageHint": "barber app"
+    },
+    {
+      "id": "project-ecommerce",
+      "description": "Modern E-commerce platform dashboard",
+      "imageUrl": "https://picsum.photos/seed/42/800/600",
+      "imageHint": "ecommerce dashboard"
+    },
+    {
+      "id": "project-fitness",
+      "description": "Fitness tracking mobile application",
+      "imageUrl": "https://picsum.photos/seed/15/800/600",
+      "imageHint": "fitness mobile"
+    }
+  ]
+}

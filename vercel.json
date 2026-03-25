@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME": "@NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY": "@CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET": "@CLOUDINARY_API_SECRET"
+  },
+  "regions": ["bom1"],
+  "functions": {
+    "src/app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  }
+}
