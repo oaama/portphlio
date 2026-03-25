@@ -139,11 +139,6 @@ export async function POST(request: NextRequest) {
       throw uploadError;
     }
 
-    } catch (uploadError) {
-      console.error('[Upload] Cloudinary upload failed:', uploadError);
-      throw uploadError;
-    }
-
     if (!uploadResult) {
       throw new Error('Cloudinary upload returned no result');
     }
