@@ -24,6 +24,31 @@ export async function uploadImageToCloudinary(
   file: File
 ): Promise<UploadResponse> {
   try {
+    // Validate file before upload
+    if (!file) {
+      return {
+        success: false,
+        error: 'No file provided'
+      };
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      return {
+        success: false,
+        error: 'File is too large (max 5MB)'
+      };
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        success: false,
+        error: `Invalid file type: ${file.type}`
+      };
+    }
+
+    console.log('[uploadImageToCloudinary] Uploading:', { name: file.name, size: file.size });
+
     const formData = new FormData();
     formData.append('file', file);
 
@@ -32,19 +57,33 @@ export async function uploadImageToCloudinary(
       body: formData
     });
 
+    console.log('[uploadImageToCloudinary] Response status:', response.status);
+
     if (!response.ok) {
-      const error = await response.json();
+      let errorMsg = `Upload failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch {
+        // If response is not JSON, use default error message
+      }
+      console.error('[uploadImageToCloudinary] Error:', errorMsg);
       return {
         success: false,
-        error: error.error || 'Upload failed'
+        error: errorMsg
       };
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('[uploadImageToCloudinary] Success:', result);
+    return result;
+
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Upload failed';
+    console.error('[uploadImageToCloudinary] Exception:', errorMsg);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Upload failed'
+      error: errorMsg
     };
   }
 }
@@ -58,23 +97,46 @@ export async function deleteImageFromCloudinary(
   publicId: string
 ): Promise<UploadResponse> {
   try {
-    const response = await fetch(`/api/upload?publicId=${publicId}`, {
-      method: 'DELETE'
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
+    if (!publicId) {
       return {
         success: false,
-        error: error.error || 'Deletion failed'
+        error: 'Public ID is required'
       };
     }
 
-    return await response.json();
+    console.log('[deleteImageFromCloudinary] Deleting:', publicId);
+
+    const response = await fetch(`/api/upload?publicId=${encodeURIComponent(publicId)}`, {
+      method: 'DELETE'
+    });
+
+    console.log('[deleteImageFromCloudinary] Response status:', response.status);
+
+    if (!response.ok) {
+      let errorMsg = `Deletion failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch {
+        // If response is not JSON, use default error message
+      }
+      console.error('[deleteImageFromCloudinary] Error:', errorMsg);
+      return {
+        success: false,
+        error: errorMsg
+      };
+    }
+
+    const result = await response.json();
+    console.log('[deleteImageFromCloudinary] Success');
+    return result;
+
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Deletion failed';
+    console.error('[deleteImageFromCloudinary] Exception:', errorMsg);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Deletion failed'
+      error: errorMsg
     };
   }
 }
@@ -99,10 +161,14 @@ export function getCloudinaryUrl(
     throw new Error('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME not configured');
   }
 
+  if (!publicId) {
+    throw new Error('publicId is required');
+  }
+
   let url = `https://res.cloudinary.com/${cloudName}/image/upload`;
 
   // Add transformations if provided
-  if (transformations) {
+  if (transformations && Object.keys(transformations).length > 0) {
     const transforms = [];
 
     if (transformations.width || transformations.height) {
@@ -122,6 +188,9 @@ export function getCloudinaryUrl(
     if (transforms.length > 0) {
       url += '/' + transforms.join('/');
     }
+  } else {
+    // Default transformations for better performance
+    url += '/q_auto,f_auto';
   }
 
   url += `/${publicId}`;

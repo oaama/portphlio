@@ -1,19 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
 // CORS Headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
+
+/**
+ * Configure Cloudinary with validation
+ * Called inside handlers to ensure env vars are available in serverless environment
+ */
+function initializeCloudinary() {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  // Log env var existence (NOT actual values for security)
+  console.log('[Cloudinary Config Check]', {
+    cloudNameSet: !!cloudName,
+    apiKeySet: !!apiKey,
+    apiSecretSet: !!apiSecret,
+  });
+
+  // Validate all required env vars
+  if (!cloudName) {
+    throw new Error('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME environment variable is not set');
+  }
+  if (!apiKey) {
+    throw new Error('CLOUDINARY_API_KEY environment variable is not set');
+  }
+  if (!apiSecret) {
+    throw new Error('CLOUDINARY_API_SECRET environment variable is not set');
+  }
+
+  // Configure Cloudinary
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true
+  });
+
+  console.log('[Cloudinary] Initialized successfully');
+  return { cloudName, apiKey, apiSecret };
+}
 
 // Handle OPTIONS request for CORS
 export async function OPTIONS() {
@@ -23,44 +55,53 @@ export async function OPTIONS() {
 /**
  * POST /api/upload
  * Upload image to Cloudinary
+ * 
+ * Expected request:
+ * - Content-Type: multipart/form-data
+ * - Body: FormData with 'file' field
+ * 
+ * Response:
+ * - 200: { success: true, data: { secure_url, public_id, width, height, size } }
+ * - 400/500: { success: false, error: string }
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify Cloudinary is configured
-    if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) {
-      console.error('ERROR: Cloudinary cloud name not configured');
+    console.log('[Upload] Starting image upload...');
+
+    // Initialize Cloudinary (will throw if env vars missing)
+    initializeCloudinary();
+
+    // Parse form data
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (err) {
+      console.error('[Upload] Failed to parse FormData:', err);
       return NextResponse.json(
-        { success: false, error: 'Cloudinary not configured' },
-        { headers: corsHeaders, status: 500 }
+        { success: false, error: 'Invalid form data' },
+        { headers: corsHeaders, status: 400 }
       );
     }
 
-    if (!process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      console.error('ERROR: Cloudinary API credentials not configured');
-      return NextResponse.json(
-        { success: false, error: 'Cloudinary credentials not configured' },
-        { headers: corsHeaders, status: 500 }
-      );
-    }
-
-    // Get form data
-    const formData = await request.formData();
     const file = formData.get('file') as File;
 
+    // Validate file exists
     if (!file) {
-      console.error('ERROR: No file provided');
+      console.error('[Upload] No file provided in form data');
       return NextResponse.json(
         { success: false, error: 'No file provided' },
         { headers: corsHeaders, status: 400 }
       );
     }
 
+    console.log('[Upload] File received:', { name: file.name, type: file.type, size: file.size });
+
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      console.error('ERROR: Invalid file type:', file.type);
+      console.error('[Upload] Invalid file type:', file.type);
       return NextResponse.json(
-        { success: false, error: 'Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.' },
+        { success: false, error: `Invalid file type: ${file.type}. Allowed: JPEG, PNG, GIF, WebP` },
         { headers: corsHeaders, status: 400 }
       );
     }
@@ -68,64 +109,77 @@ export async function POST(request: NextRequest) {
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      console.error('ERROR: File too large:', file.size);
+      console.error('[Upload] File too large:', file.size, 'bytes');
       return NextResponse.json(
-        { success: false, error: 'File too large. Maximum size is 5MB.' },
+        { success: false, error: `File too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum: 5MB` },
         { headers: corsHeaders, status: 400 }
       );
     }
 
-    // Convert file to buffer
+    // Convert file to buffer for upload
+    console.log('[Upload] Converting file to buffer...');
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to Cloudinary
-    const result = await new Promise((resolve, reject) => {
+    // Upload to Cloudinary using upload_stream
+    console.log('[Upload] Uploading to Cloudinary...');
+    const uploadResult = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'portfolio/projects',
           resource_type: 'auto',
           quality: 'auto',
-          fetch_format: 'auto'
+          fetch_format: 'auto',
+          chunk_size: 6000000, // 6MB chunks for large files
         },
         (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
+          if (error) {
+            console.error('[Upload] Cloudinary error:', error);
+            reject(error);
+          } else {
+            console.log('[Upload] Cloudinary success:', { public_id: result?.public_id });
+            resolve(result);
+          }
         }
       );
 
       uploadStream.end(buffer);
     });
 
-    if (!result) {
-      throw new Error('Upload failed');
+    if (!uploadResult) {
+      throw new Error('Cloudinary upload returned no result');
     }
 
-    const uploadResult = result as any;
+    const result = uploadResult as any;
 
+    // Return success response
     return NextResponse.json(
       {
         success: true,
         data: {
-          secure_url: uploadResult.secure_url,
-          public_id: uploadResult.public_id,
-          width: uploadResult.width,
-          height: uploadResult.height,
-          size: uploadResult.bytes
+          secure_url: result.secure_url,
+          public_id: result.public_id,
+          width: result.width,
+          height: result.height,
+          size: result.bytes,
         }
       },
       { headers: corsHeaders, status: 200 }
     );
+
   } catch (error) {
-    console.error('Upload error:', error);
-    
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : 'Failed to upload image';
-    
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[Upload] ERROR:', errorMsg);
+
+    // Determine status code based on error type
+    const statusCode = errorMsg.includes('environment variable') ? 500 : 500;
+
     return NextResponse.json(
-      { success: false, error: errorMessage },
-      { headers: corsHeaders, status: 500 }
+      {
+        success: false,
+        error: errorMsg || 'Failed to upload image'
+      },
+      { headers: corsHeaders, status: statusCode }
     );
   }
 }
@@ -136,17 +190,27 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    console.log('[Delete] Starting image deletion...');
+
+    // Initialize Cloudinary
+    initializeCloudinary();
+
     const publicId = request.nextUrl.searchParams.get('publicId');
 
     if (!publicId) {
+      console.error('[Delete] publicId parameter missing');
       return NextResponse.json(
-        { success: false, error: 'publicId parameter required' },
+        { success: false, error: 'publicId parameter is required' },
         { headers: corsHeaders, status: 400 }
       );
     }
 
+    console.log('[Delete] Deleting image:', publicId);
+
     // Delete from Cloudinary
     const result = await cloudinary.uploader.destroy(publicId);
+
+    console.log('[Delete] Result:', result.result);
 
     return NextResponse.json(
       {
@@ -156,9 +220,11 @@ export async function DELETE(request: NextRequest) {
       { headers: corsHeaders, status: 200 }
     );
   } catch (error) {
-    console.error('Delete error:', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[Delete] ERROR:', errorMsg);
+
     return NextResponse.json(
-      { success: false, error: 'Failed to delete image' },
+      { success: false, error: errorMsg || 'Failed to delete image' },
       { headers: corsHeaders, status: 500 }
     );
   }
