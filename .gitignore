@@ -33,13 +33,33 @@ yarn-error.log*
 # vercel
 .vercel
 
+# netlify
+.netlify
+.netlify/cache
+.netlify/functions-serve
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
+# environment variables (NEVER commit these!)
+.env
+.env.local
+.env.*.local
+.env.production.local
+.env.development.local
+.env.test.local
+
+# genkit
 .genkit/*
-.env*
 
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
