@@ -90,17 +90,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert to buffer
+    // Convert to base64 string (more reliable with Cloudinary than buffer)
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const base64 = buffer.toString('base64');
+    const dataURI = `data:${file.type};base64,${base64}`;
 
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(buffer, {
+    console.log('[Upload] File ready for upload:', { 
+      name: file.name, 
+      type: file.type, 
+      size: file.size,
+      base64Length: base64.length 
+    });
+
+    // Upload to Cloudinary using data URI (more reliable)
+    const result = await cloudinary.uploader.upload(dataURI, {
       folder: 'portfolio/projects',
       resource_type: 'auto',
       quality: 'auto',
       fetch_format: 'auto',
     });
+
+    console.log('[Upload] Success:', { public_id: result.public_id, url: result.secure_url });
 
     return NextResponse.json(
       {
@@ -118,6 +129,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Upload failed';
+    console.error('[Upload] ERROR:', msg, error);
     return NextResponse.json(
       { success: false, error: msg },
       { headers: corsHeaders, status: 500 }
