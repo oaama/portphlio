@@ -58,6 +58,8 @@ export async function OPTIONS() {
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('[Upload] Starting...');
+    
     // Initialize Cloudinary
     initializeCloudinary();
 
@@ -66,70 +68,88 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File;
 
     if (!file) {
+      console.error('[Upload] No file');
       return NextResponse.json(
         { success: false, error: 'No file provided' },
         { headers: corsHeaders, status: 400 }
       );
     }
 
+    console.log('[Upload] File:', { name: file.name, type: file.type, size: file.size });
+
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
+      console.error('[Upload] Invalid type:', file.type);
       return NextResponse.json(
         { success: false, error: 'Invalid file type' },
         { headers: corsHeaders, status: 400 }
       );
     }
 
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024;
+    // Validate file size (max 3MB for Netlify limits)
+    const maxSize = 3 * 1024 * 1024;
     if (file.size > maxSize) {
+      console.error('[Upload] File too large:', file.size);
       return NextResponse.json(
-        { success: false, error: 'File too large (max 5MB)' },
+        { success: false, error: 'File too large (max 3MB)' },
         { headers: corsHeaders, status: 400 }
       );
     }
 
-    // Convert to base64 string (more reliable with Cloudinary than buffer)
+    // Convert to buffer
+    console.log('[Upload] Converting to buffer...');
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const base64 = buffer.toString('base64');
-    const dataURI = `data:${file.type};base64,${base64}`;
 
-    console.log('[Upload] File ready for upload:', { 
-      name: file.name, 
-      type: file.type, 
-      size: file.size,
-      base64Length: base64.length 
+    // Upload to Cloudinary using buffer directly (no base64 bloat)
+    console.log('[Upload] Uploading to Cloudinary...');
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'portfolio/projects',
+          resource_type: 'auto',
+          quality: 'auto',
+          fetch_format: 'auto',
+        },
+        (error, result) => {
+          if (error) {
+            console.error('[Upload] Stream error:', error.message);
+            reject(error);
+          } else {
+            console.log('[Upload] Stream success:', result?.public_id);
+            resolve(result);
+          }
+        }
+      );
+      
+      uploadStream.end(buffer);
     });
 
-    // Upload to Cloudinary using data URI (more reliable)
-    const result = await cloudinary.uploader.upload(dataURI, {
-      folder: 'portfolio/projects',
-      resource_type: 'auto',
-      quality: 'auto',
-      fetch_format: 'auto',
-    });
+    if (!result) {
+      throw new Error('No result from upload');
+    }
 
-    console.log('[Upload] Success:', { public_id: result.public_id, url: result.secure_url });
+    const uploadResult = result as any;
 
+    console.log('[Upload] Complete:', uploadResult.public_id);
     return NextResponse.json(
       {
         success: true,
         data: {
-          secure_url: result.secure_url,
-          public_id: result.public_id,
-          width: result.width,
-          height: result.height,
-          size: result.bytes,
+          secure_url: uploadResult.secure_url,
+          public_id: uploadResult.public_id,
+          width: uploadResult.width,
+          height: uploadResult.height,
+          size: uploadResult.bytes,
         }
       },
       { headers: corsHeaders, status: 200 }
     );
 
   } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Upload failed';
-    console.error('[Upload] ERROR:', msg, error);
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Upload] ERROR:', msg);
     return NextResponse.json(
       { success: false, error: msg },
       { headers: corsHeaders, status: 500 }
