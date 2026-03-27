@@ -64,10 +64,10 @@ export async function uploadImageToCloudinary(
       try {
         const errorData = await response.json();
         errorMsg = errorData.error || errorMsg;
-      } catch {
-        // If response is not JSON, use default error message
+        console.error('[uploadImageToCloudinary] API Error:', errorData);
+      } catch (e) {
+        console.error('[uploadImageToCloudinary] Could not parse error response');
       }
-      console.error('[uploadImageToCloudinary] Error:', errorMsg);
       return {
         success: false,
         error: errorMsg
@@ -75,12 +75,12 @@ export async function uploadImageToCloudinary(
     }
 
     const result = await response.json();
-    console.log('[uploadImageToCloudinary] Success:', result);
+    console.log('[uploadImageToCloudinary] Success:', { publicId: result?.data?.public_id });
     return result;
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Upload failed';
-    console.error('[uploadImageToCloudinary] Exception:', errorMsg);
+    console.error('[uploadImageToCloudinary] Exception:', errorMsg, error);
     return {
       success: false,
       error: errorMsg

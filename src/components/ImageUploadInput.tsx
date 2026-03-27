@@ -27,9 +27,10 @@ export function ImageUploadInput({
   maxSize = 5
 }: ImageUploadInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { uploading, error, upload } = useImageUpload();
+  const { uploading, error: uploadError, upload } = useImageUpload();
   const [preview, setPreview] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -37,10 +38,12 @@ export function ImageUploadInput({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setLocalError(null);
+
     // Validate file size
     const maxSizeBytes = maxSize * 1024 * 1024;
     if (file.size > maxSizeBytes) {
-      // Error handling
+      setLocalError(`File is too large. Maximum: ${maxSize}MB`);
       return;
     }
 
@@ -52,13 +55,18 @@ export function ImageUploadInput({
     reader.readAsDataURL(file);
 
     // Upload file
+    console.log('Starting upload for file:', file.name);
     const result = await upload(file);
+    
     if (result) {
+      console.log('Upload successful:', result);
       setSuccessMessage('Image uploaded successfully!');
       onImageUpload?.(result.url, result.publicId);
 
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      console.error('Upload failed');
     }
 
     // Reset file input
@@ -117,10 +125,17 @@ export function ImageUploadInput({
         </div>
       )}
 
-      {error && (
+      {localError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{localError}</AlertDescription>
+        </Alert>
+      )}
+
+      {uploadError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{uploadError}</AlertDescription>
         </Alert>
       )}
 
