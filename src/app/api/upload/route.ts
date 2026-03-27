@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import FormData from 'form-data';
 
 // CORS Headers
 const corsHeaders = {
@@ -54,7 +55,7 @@ export async function OPTIONS() {
 
 /**
  * POST /api/upload
- * Upload image to Cloudinary using direct API call
+ * Upload image to Cloudinary using REST API with form-data
  */
 export async function POST(request: NextRequest) {
   try {
@@ -63,26 +64,26 @@ export async function POST(request: NextRequest) {
     // Initialize Cloudinary (to verify env vars)
     const config = initializeCloudinary();
 
-    // Get form data
+    // Get form data from client
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
     if (!file) {
-      console.error('[Upload] No file');
+      console.error('[Upload] No file provided');
       return NextResponse.json(
         { success: false, error: 'No file provided' },
         { headers: corsHeaders, status: 400 }
       );
     }
 
-    console.log('[Upload] File:', { name: file.name, type: file.type, size: file.size });
+    console.log('[Upload] File received:', { name: file.name, type: file.type, size: file.size });
 
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       console.error('[Upload] Invalid type:', file.type);
       return NextResponse.json(
-        { success: false, error: 'Invalid file type' },
+        { success: false, error: `Invalid file type. Allowed: ${allowedTypes.join(', ')}` },
         { headers: corsHeaders, status: 400 }
       );
     }
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     if (file.size > maxSize) {
       console.error('[Upload] File too large:', file.size);
       return NextResponse.json(
-        { success: false, error: 'File too large (max 3MB)' },
+        { success: false, error: `File too large. Max 3MB, got ${(file.size / 1024 / 1024).toFixed(2)}MB` },
         { headers: corsHeaders, status: 400 }
       );
     }
@@ -102,77 +103,59 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create FormData for Cloudinary API
-    console.log('[Upload] Uploading to Cloudinary API...');
-    const uploadFormData = new FormData();
-    
-    // Add file as Blob
-    const blob = new Blob([buffer], { type: file.type });
-    uploadFormData.append('file', blob, file.name);
-    
-    // Add other parameters
-    uploadFormData.append('folder', 'portfolio/projects');
-    uploadFormData.append('quality', 'auto');
-    uploadFormData.append('fetch_format', 'auto');
-    uploadFormData.append('upload_preset', 'unsigned_upload'); // or use API key auth below
+    // Prepare Cloudinary API call
+    console.log('[Upload] Preparing API request...');
+    const timestamp = Math.floor(Date.now() / 1000);
+    const api_key = config.apiKey;
+    const api_secret = config.apiSecret;
+    const cloud_name = config.cloudName;
 
-    // If upload_preset not configured, use API auth
-    if (!process.env.CLOUDINARY_API_KEY) {
-      throw new Error('CLOUDINARY_API_KEY not configured');
+    if (!api_key || !api_secret || !cloud_name) {
+      throw new Error('Cloudinary credentials not configured');
     }
 
-    // Use API authentication instead of unsigned upload
-    const timestamp = Math.floor(Date.now() / 1000);
-    const api_key = process.env.CLOUDINARY_API_KEY;
-    const api_secret = process.env.CLOUDINARY_API_SECRET;
-    const cloud_name = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-
-    // Sign the request
-    const params = {
-      folder: 'portfolio/projects',
-      quality: 'auto',
-      fetch_format: 'auto',
-      timestamp,
-      api_key,
-    };
-
-    // Create signature
-    const paramsStr = Object.keys(params)
-      .sort()
-      .map(key => `${key}=${params[key as keyof typeof params]}`)
-      .join('&') + api_secret;
-
+    // Build signature for authenticated upload
+    const paramsStr = `folder=portfolio/projects&quality=auto&fetch_format=auto&timestamp=${timestamp}&api_key=${api_key}${api_secret}`;
     const crypto = require('crypto');
     const signature = crypto.createHash('sha1').update(paramsStr).digest('hex');
 
-    // Build upload URL
+    // Create multipart FormData using the form-data package
+    console.log('[Upload] Creating multipart FormData...');
+    const uploadData = new FormData();
+    uploadData.append('file', buffer, { filename: file.name, contentType: file.type });
+    uploadData.append('folder', 'portfolio/projects');
+    uploadData.append('quality', 'auto');
+    uploadData.append('fetch_format', 'auto');
+    uploadData.append('timestamp', timestamp.toString());
+    uploadData.append('api_key', api_key);
+    uploadData.append('signature', signature);
+
+    // Call Cloudinary REST API
     const uploadUrl = `https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`;
+    console.log('[Upload] Posting to Cloudinary:', uploadUrl);
 
-    // Create final FormData
-    const finalFormData = new FormData();
-    finalFormData.append('file', blob, file.name);
-    finalFormData.append('folder', 'portfolio/projects');
-    finalFormData.append('quality', 'auto');
-    finalFormData.append('fetch_format', 'auto');
-    finalFormData.append('timestamp', timestamp.toString());
-    finalFormData.append('api_key', api_key);
-    finalFormData.append('signature', signature);
-
-    console.log('[Upload] Calling Cloudinary API:', uploadUrl);
-
-    // Call Cloudinary API
     const response = await fetch(uploadUrl, {
       method: 'POST',
-      body: finalFormData,
+      body: uploadData,
+      headers: uploadData.getHeaders ? uploadData.getHeaders() : {},
     });
 
+    const responseText = await response.text();
+    console.log('[Upload] Response status:', response.status);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Upload] API error:', response.status, errorText);
-      throw new Error(`Cloudinary API error: ${response.status}`);
+      console.error('[Upload] API error response:', responseText);
+      let errorMsg = `HTTP ${response.status}`;
+      try {
+        const json = JSON.parse(responseText);
+        errorMsg = json.error?.message || json.message || errorMsg;
+      } catch {
+        errorMsg = responseText || errorMsg;
+      }
+      throw new Error(errorMsg);
     }
 
-    const result = await response.json();
+    const result = JSON.parse(responseText);
     console.log('[Upload] Success:', result.public_id);
 
     return NextResponse.json(
