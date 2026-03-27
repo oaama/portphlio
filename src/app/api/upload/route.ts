@@ -55,144 +55,53 @@ export async function OPTIONS() {
 /**
  * POST /api/upload
  * Upload image to Cloudinary
- * 
- * Expected request:
- * - Content-Type: multipart/form-data
- * - Body: FormData with 'file' field
- * 
- * Response:
- * - 200: { success: true, data: { secure_url, public_id, width, height, size } }
- * - 400/500: { success: false, error: string }
  */
 export async function POST(request: NextRequest) {
-  const requestId = Math.random().toString(36).substring(7);
-  console.log(`[${requestId}] POST /api/upload started`);
-
   try {
-    // Step 1: Initialize Cloudinary
-    console.log(`[${requestId}] Step 1: Initializing Cloudinary...`);
-    let config;
-    try {
-      config = initializeCloudinary();
-      console.log(`[${requestId}] ✓ Cloudinary initialized`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[${requestId}] ✗ Cloudinary init error: ${msg}`);
-      return NextResponse.json(
-        { success: false, error: `Config error: ${msg}` },
-        { headers: corsHeaders, status: 500 }
-      );
-    }
+    // Initialize Cloudinary
+    initializeCloudinary();
 
-    // Step 2: Parse form data
-    console.log(`[${requestId}] Step 2: Parsing form data...`);
-    let formData: FormData;
-    try {
-      formData = await request.formData();
-      console.log(`[${requestId}] ✓ Form data parsed`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[${requestId}] ✗ Form parse error: ${msg}`);
-      return NextResponse.json(
-        { success: false, error: `Form parse error: ${msg}` },
-        { headers: corsHeaders, status: 400 }
-      );
-    }
-
-    // Step 3: Get file
-    console.log(`[${requestId}] Step 3: Getting file from form...`);
+    // Get form data
+    const formData = await request.formData();
     const file = formData.get('file') as File;
 
     if (!file) {
-      console.error(`[${requestId}] ✗ No file in form data`);
       return NextResponse.json(
         { success: false, error: 'No file provided' },
         { headers: corsHeaders, status: 400 }
       );
     }
 
-    console.log(`[${requestId}] ✓ File found: ${file.name} (${file.type}, ${file.size} bytes)`);
-
-    // Step 4: Validate file type
-    console.log(`[${requestId}] Step 4: Validating file type...`);
+    // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      console.error(`[${requestId}] ✗ Invalid type: ${file.type}`);
       return NextResponse.json(
-        { success: false, error: `Invalid type: ${file.type}` },
+        { success: false, error: 'Invalid file type' },
         { headers: corsHeaders, status: 400 }
       );
     }
-    console.log(`[${requestId}] ✓ File type valid`);
 
-    // Step 5: Validate file size
-    console.log(`[${requestId}] Step 5: Validating file size...`);
+    // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      console.error(`[${requestId}] ✗ File too large: ${file.size} bytes`);
       return NextResponse.json(
-        { success: false, error: `File too large: ${Math.round(file.size / 1024 / 1024)}MB (max 5MB)` },
+        { success: false, error: 'File too large (max 5MB)' },
         { headers: corsHeaders, status: 400 }
       );
     }
-    console.log(`[${requestId}] ✓ File size valid`);
 
-    // Step 6: Convert to buffer
-    console.log(`[${requestId}] Step 6: Converting to buffer...`);
-    let buffer: Buffer;
-    try {
-      const bytes = await file.arrayBuffer();
-      buffer = Buffer.from(bytes);
-      console.log(`[${requestId}] ✓ Buffer created: ${buffer.length} bytes`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[${requestId}] ✗ Buffer conversion error: ${msg}`);
-      return NextResponse.json(
-        { success: false, error: `Buffer error: ${msg}` },
-        { headers: corsHeaders, status: 500 }
-      );
-    }
+    // Convert to buffer
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    // Step 7: Upload to Cloudinary
-    console.log(`[${requestId}] Step 7: Uploading to Cloudinary...`);
-    console.log(`[${requestId}] Using config: cloud_name=${config.cloudName}, apiKeySet=${!!config.apiKey}, apiSecretSet=${!!config.apiSecret}`);
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(buffer, {
+      folder: 'portfolio/projects',
+      resource_type: 'auto',
+      quality: 'auto',
+      fetch_format: 'auto',
+    });
 
-    let uploadResult;
-    try {
-      const uploadOptions = {
-        folder: 'portfolio/projects',
-        resource_type: 'auto' as const,
-        quality: 'auto' as const,
-        fetch_format: 'auto' as const,
-        timeout: 120000,
-      };
-      
-      console.log(`[${requestId}] Calling cloudinary.uploader.upload() with buffer (${buffer.length} bytes)...`);
-      uploadResult = await cloudinary.uploader.upload(buffer, uploadOptions);
-      console.log(`[${requestId}] ✓ Cloudinary upload successful: ${uploadResult.public_id}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[${requestId}] ✗ Cloudinary upload error: ${msg}`);
-      console.error(`[${requestId}] Full error:`, err);
-      return NextResponse.json(
-        { success: false, error: `Cloudinary error: ${msg}` },
-        { headers: corsHeaders, status: 500 }
-      );
-    }
-
-    // Step 8: Validate result
-    console.log(`[${requestId}] Step 8: Validating upload result...`);
-    if (!uploadResult) {
-      console.error(`[${requestId}] ✗ Empty result from Cloudinary`);
-      return NextResponse.json(
-        { success: false, error: 'Empty upload result' },
-        { headers: corsHeaders, status: 500 }
-      );
-    }
-
-    // Step 9: Return success
-    console.log(`[${requestId}] Step 9: Returning success response`);
-    const result = uploadResult as any;
     return NextResponse.json(
       {
         success: true,
@@ -208,15 +117,9 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`[${requestId}] UNCAUGHT ERROR: ${errorMsg}`);
-    console.error(`[${requestId}] Full error:`, error);
-
+    const msg = error instanceof Error ? error.message : 'Upload failed';
     return NextResponse.json(
-      {
-        success: false,
-        error: `Server error: ${errorMsg}`
-      },
+      { success: false, error: msg },
       { headers: corsHeaders, status: 500 }
     );
   }
