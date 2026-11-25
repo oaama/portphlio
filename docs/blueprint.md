@@ -1,9 +1,9 @@
-# **App Name**: Apex Technoscapes
+# **App Name**: Angelo Rezq Portfolio
 
 ## Core Features:
 
 - Animated Hero Section: Showcases Angelo's title, tagline, and key calls to action ('View Projects', 'Contact Me') with smooth Framer Motion animations.
-- Professional About Section: Presents a concise professional biography, highlighting roles as Software Engineer, Founder of Techno Media, and Founder of Zone A, emphasizing specialization in Web Development and Flutter.
+- Professional About Section: Presents a concise professional biography, highlighting roles as Software Engineer, Founder of HEXA PLUS, and Founder of Zone A, emphasizing specialization in Web Development and Flutter.
 - Dynamic Tech Stack Display: Visually represents Angelo's diverse skill set, including Web (HTML, CSS, JavaScript, React), Mobile (Flutter, Dart), and Backend knowledge (Node.js, .NET basics) using modern icons.
 - Project Showcase: Dynamically loads and displays project cards from 'src/data/projects.json', each featuring an image, title, description, tech stack, and action buttons for 'Live Demo', 'GitHub', and 'Project Files'.
 - Admin Project Management Interface: A simplified '/admin' page allowing Angelo to add, edit, or delete portfolio projects using a form interface, with data persistently stored via Local Storage.
